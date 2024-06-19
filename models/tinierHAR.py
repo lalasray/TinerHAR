@@ -7,91 +7,138 @@ import numpy as np
 import time
 from flash_attn import flash_attn_qkvpacked_func, flash_attn_func
 
+x = "ori" #"flash"ori"equi"
 
-'''
-class SelfAttention_interaction(nn.Module):
-    def __init__(self, sensor_channel, n_channels):
-        super(SelfAttention_interaction, self).__init__()
+if x == "flash":
 
-        self.query = nn.Linear(n_channels, n_channels, bias=False)
-        self.key = nn.Linear(n_channels, n_channels, bias=False)
-        self.value = nn.Linear(n_channels, n_channels, bias=False)
-        self.gamma = nn.Parameter(torch.tensor([0.], dtype=torch.float32))
-        
-    def forward(self, x):
-        # Ensure input is in float16 and move to GPU
-        x = x.to(torch.float16).cuda()
-        
-        # Ensure weights are in float16 and move to GPU
-        self.query.weight.data = self.query.weight.data.to(torch.float16).cuda()
-        self.key.weight.data = self.key.weight.data.to(torch.float16).cuda()
-        self.value.weight.data = self.value.weight.data.to(torch.float16).cuda()
-        
-        # Project input to Q, K, V
-        q = self.query(x)
-        k = self.key(x)
-        v = self.value(x)
-        
-        # Reshape to (batch, seqlen, num_heads, head_dim)
-        batch_size, seqlen, feature_dim = x.shape
-        num_heads = 1  # Since we are not using multi-head attention here
-        head_dim = feature_dim // num_heads
-        
-        q = q.view(batch_size, seqlen, num_heads, head_dim)
-        k = k.view(batch_size, seqlen, num_heads, head_dim)
-        v = v.view(batch_size, seqlen, num_heads, head_dim)
-        
-        # Apply FlashAttention
-        qkv = torch.stack((q, k, v), dim=2)  # Shape: (batch_size, seqlen, 3, num_heads, head_dim)
-        out = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, causal=False)
-        
-        # Reshape the output back to (batch, seqlen, feature_dim)
-        out = out.view(batch_size, seqlen, feature_dim)
-        
-        # Convert gamma to float16 and move to GPU if needed
-        gamma = self.gamma.to(torch.float16).cuda()
-        
-        # Apply gamma parameter
-        out = gamma * out + x
-        
-        # Convert the output back to float32 if needed and move to CPU
-        out = out.to(torch.float32).cpu()
-        
-        return out
+    class SelfAttention_interaction(nn.Module):
+        def __init__(self, sensor_channel, n_channels):
+            super(SelfAttention_interaction, self).__init__()
 
-'''
-class SelfAttention_interaction(nn.Module):
-    """
+            self.query = nn.Linear(n_channels, n_channels, bias=False)
+            self.key = nn.Linear(n_channels, n_channels, bias=False)
+            self.value = nn.Linear(n_channels, n_channels, bias=False)
+            self.gamma = nn.Parameter(torch.tensor([0.], dtype=torch.float32))
+            
+        def forward(self, x):
+            # Ensure input is in float16 and move to GPU
+            x = x.to(torch.float16)
+            
+            # Ensure weights are in float16 and move to GPU
+            self.query.weight.data = self.query.weight.data.to(torch.float16)
+            self.key.weight.data = self.key.weight.data.to(torch.float16)
+            self.value.weight.data = self.value.weight.data.to(torch.float16)
+            
+            # Project input to Q, K, V
+            q = self.query(x)
+            k = self.key(x)
+            v = self.value(x)
+            
+            # Reshape to (batch, seqlen, num_heads, head_dim)
+            batch_size, seqlen, feature_dim = x.shape
+            num_heads = 8  # Since we are not using multi-head attention here
+            head_dim = feature_dim // num_heads
+            
+            q = q.view(batch_size, seqlen, num_heads, head_dim)
+            k = k.view(batch_size, seqlen, num_heads, head_dim)
+            v = v.view(batch_size, seqlen, num_heads, head_dim)
+            
+            # Apply FlashAttention
+            qkv = torch.stack((q, k, v), dim=2)  # Shape: (batch_size, seqlen, 3, num_heads, head_dim)
+            out = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, causal=False)
+            
+            # Reshape the output back to (batch, seqlen, feature_dim)
+            out = out.view(batch_size, seqlen, feature_dim)
+            
+            # Convert gamma to float16 and move to GPU if needed
+            gamma = self.gamma
+            
+            # Apply gamma parameter
+            out = gamma * out + x
+            
+            # Convert the output back to float32 if needed and move to CPU
+            out = out
+            
+            return out
 
-    """
+elif x == "ori":
+    class SelfAttention_interaction(nn.Module):
+        """
 
-    def __init__(self, sensor_channel, n_channels):
-        super(SelfAttention_interaction, self).__init__()
+        """
 
-        self.query = nn.Linear(n_channels, n_channels, bias=False)
-        self.key = nn.Linear(n_channels, n_channels, bias=False)
-        self.value = nn.Linear(n_channels, n_channels, bias=False)
-        self.gamma = nn.Parameter(torch.tensor([0.]))
+        def __init__(self, sensor_channel, n_channels):
+            super(SelfAttention_interaction, self).__init__()
 
-        # self.fc1            = nn.Linear(n_channels, n_channels, bias=False)
-        # self.fc_activation = nn.ReLU()
-        # self.fc2            = nn.Linear(n_channels, n_channels, bias=False)
-        # self.beta         = nn.Parameter(torch.tensor([0.]))
+            self.query = nn.Linear(n_channels, n_channels, bias=False)
+            self.key = nn.Linear(n_channels, n_channels, bias=False)
+            self.value = nn.Linear(n_channels, n_channels, bias=False)
+            self.gamma = nn.Parameter(torch.tensor([0.]))
 
-    def forward(self, x):
-        # 输入尺寸是 batch  sensor_channel feature_dim
-        # print(x.shape)
+            # self.fc1            = nn.Linear(n_channels, n_channels, bias=False)
+            # self.fc_activation = nn.ReLU()
+            # self.fc2            = nn.Linear(n_channels, n_channels, bias=False)
+            # self.beta         = nn.Parameter(torch.tensor([0.]))
 
-        f, g, h = self.query(x), self.key(x), self.value(x)
+        def forward(self, x):
+            # 输入尺寸是 batch  sensor_channel feature_dim
+            # print(x.shape)
 
-        beta = F.softmax(torch.bmm(f, g.permute(0, 2, 1).contiguous()), dim=1)
+            f, g, h = self.query(x), self.key(x), self.value(x)
 
-        o = self.gamma * torch.bmm(h.permute(0, 2, 1).contiguous(), beta) + x.permute(0, 2, 1).contiguous()
-        o = o.permute(0, 2, 1).contiguous()
+            beta = F.softmax(torch.bmm(f, g.permute(0, 2, 1).contiguous()), dim=1)
 
-        # o = self.beta  * self.fc2(self.fc_activation(self.fc1(o)))  +  o
-        # 输出是 batch  sensor_channel feature_dim 1
-        return o
+            o = self.gamma * torch.bmm(h.permute(0, 2, 1).contiguous(), beta) + x.permute(0, 2, 1).contiguous()
+            o = o.permute(0, 2, 1).contiguous()
+
+            # o = self.beta  * self.fc2(self.fc_activation(self.fc1(o)))  +  o
+            # 输出是 batch  sensor_channel feature_dim 1
+            return o
+
+elif x == "equi":
+    class SelfAttention_interaction(nn.Module):
+        def __init__(self, sensor_channel, n_channels, num_heads=8):
+            super(SelfAttention_interaction, self).__init__()
+            self.sensor_channel = sensor_channel
+            self.n_channels = n_channels
+            self.num_heads = num_heads
+            
+            # Initialize linear transformations for queries, keys, and values for each head
+            self.query = nn.Linear(n_channels, n_channels * num_heads, bias=False)
+            self.key = nn.Linear(n_channels, n_channels * num_heads, bias=False)
+            self.value = nn.Linear(n_channels, n_channels * num_heads, bias=False)
+            
+            # Learnable parameters
+            self.gamma = nn.Parameter(torch.zeros(1))  # Scalar parameter
+            
+        def forward(self, x):
+            # Input shape: (batch_size, sensor_channel, feature_dim)
+            batch_size, sensor_channel, feature_dim = x.size()
+            
+            # Reshape x to split into num_heads
+            f = self.query(x).view(batch_size, sensor_channel, self.num_heads, self.n_channels)
+            g = self.key(x).view(batch_size, sensor_channel, self.num_heads, self.n_channels)
+            h = self.value(x).view(batch_size, sensor_channel, self.num_heads, self.n_channels)
+            
+            # Transpose for batch matrix multiplication
+            f = f.permute(0, 2, 1, 3).contiguous().view(batch_size * self.num_heads, sensor_channel, self.n_channels)
+            g = g.permute(0, 2, 1, 3).contiguous().view(batch_size * self.num_heads, sensor_channel, self.n_channels)
+            h = h.permute(0, 2, 1, 3).contiguous().view(batch_size * self.num_heads, sensor_channel, self.n_channels)
+            
+            # Compute attention scores
+            beta = F.softmax(torch.bmm(f, g.permute(0, 2, 1)), dim=2)
+            
+            # Compute weighted sum using attention scores
+            o = torch.bmm(beta, h).view(batch_size, self.num_heads, sensor_channel, self.n_channels)
+            
+            # Combine heads output
+            o = o.sum(dim=1)  # Sum across heads
+            
+            # Scale and add residual connection
+            o = self.gamma * o + x
+            
+            # Output shape: (batch_size, sensor_channel, feature_dim)
+            return o
 
 
 class PreNorm(nn.Module):
@@ -184,7 +231,7 @@ total_params = sum(p.numel() for p in model.parameters())
 print(f"Total number of parameters: {total_params}")
 
 # Create a dummy input tensor with the shape (batch, sensor_channel, feature_dim)
-batch_size = 8        # Example batch size
+batch_size = 512        # Example batch size
 feature_dim = 64      # Example feature dimension
 dummy_input = torch.randn(batch_size, sensor_channel, feature_dim).cuda()
 
@@ -206,7 +253,10 @@ def calculate_flops(model, input_tensor):
     flops = 0
 
     # Convert input_tensor to float16 and move to GPU
-    input_tensor = input_tensor.to(torch.float16).cuda()
+    if x == "flash":
+        input_tensor = input_tensor.to(torch.float16).cuda()
+    else:
+        input_tensor = input_tensor.to(torch.float32).cuda()
 
     # Linear layer FLOPs: 2 * input_features * output_features
     flops += 2 * input_tensor.size(1) * model.query.out_features  # query
@@ -231,6 +281,46 @@ def calculate_flops(model, input_tensor):
 
     return flops
 
-
 total_flops = calculate_flops(model, dummy_input)
 print(f"Total FLOPs: {total_flops}")
+
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+criterion = nn.MSELoss()
+
+# Training parameters
+num_epochs = 100
+total_training_time = 0
+
+# Training loop
+for epoch in range(num_epochs):
+    model.train()
+    optimizer.zero_grad()
+
+    start_time = time.time()
+
+    # Forward pass
+    output = model(dummy_input)
+
+    # Dummy target (example)
+    target = torch.randn_like(output)
+
+    # Compute loss
+    loss = criterion(output, target)
+
+    # Backward pass
+    loss.backward()
+
+    # Update weights
+    optimizer.step()
+
+    end_time = time.time()
+    epoch_time = end_time - start_time
+    total_training_time += epoch_time
+
+    # Calculate FLOPs for this epoch
+    total_flops = calculate_flops(model, dummy_input)
+    flops_per_epoch = total_flops / num_epochs
+
+    #print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Time: {epoch_time:.2f} sec, FLOPs per epoch: {flops_per_epoch:.2f}")
+
+print(f"Time: {total_training_time:.2f} sec")
