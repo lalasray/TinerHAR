@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name runBeyondConfusion
+#SBATCH --partition V100-32GB
+#SBATCH --gpus=1
+#SBATCH --cpus-per-gpu=8
+#SBATCH --mem=32GB
+#SBATCH -o /netscratch/geissler/BeyondConfusion/logs/%j.out # STDOUT
+
+# put your srun command with args here
+srun -K \
+  --container-image=/netscratch/enroot/nvcr.io_nvidia_pytorch_22.10-py3.sqsh \
+  --container-workdir="`pwd`" \
+  --container-mounts=/netscratch:/netscratch,/ds:/ds:ro,"`pwd`":"`pwd`" \
+  --task-prolog="`pwd`/install.sh" \
+  python -u train.py'

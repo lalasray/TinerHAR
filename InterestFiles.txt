@@ -1,0 +1,27 @@
+PAMAP2:
+0 (2) 3->0
+1 (8) 3->0 + labelling issue
+2 (1) sensor issue 1->0, window (2,3) -> 0
+3 (5) 3-> 0, some labelling issues
+4 (6) 3->11
+5 (4) minor labelling
+6 (7) minor labelling
+7 (3) 0->3
+
+
+
+Visualize:
+
+Transition of activites
+WISDM 6 up down sitting standing
+MHEALTH 6 window of 3 not labelled cortret with the transitiion
+
+Sensor data issues
+PAMAP2 LPO 1 class 1 confsued because lying has movement
+Motionsense 4 shft (16,9,22)
+
+Uncertrainty
+Pamap2 1 ironing with standingwith pamap2 6
+plt.xlim(170000,195000)
+MHEALTH 6 null class but does something
+

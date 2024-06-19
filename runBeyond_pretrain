@@ -1,0 +1,46 @@
+#!/bin/bash
+#SBATCH --job-name runBeyondConfusionPretrain
+#SBATCH --partition H100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-gpu=1
+#SBATCH --mem=8GB
+
+
+# DATASET_LIST=("PAMAP2" "OPPORTUNITY" "MMFIT")
+DATASET_LIST=("OPPORTUNITY")
+MODEL_LIST=("CPC")
+
+SLURM_SCRIPT_TEMPLATE="#!/bin/bash
+#SBATCH --job-name={{dataset}}_{{model}}_job
+#SBATCH --partition H100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-gpu=8
+#SBATCH --mem=32GB
+#SBATCH -o /netscratch/geissler/BeyondConfusion/logs/{{dataset}}_{{model}}_%j.out # STDOUT
+
+# put your srun command with args here
+srun -K \
+  --container-image=/enroot/nvcr.io_nvidia_pytorch_23.12-py3.sqsh \
+  --container-workdir='`pwd`' \
+  --container-mounts=/netscratch:/netscratch,/ds:/ds:ro,'`pwd`':'`pwd`' \
+  --task-prolog='`pwd`/install.sh' \
+  python -u pretraincpc.py {{dataset}} {{model}}
+"
+
+# Create a directory to store Slurm job scripts
+mkdir -p slurm_scripts
+
+# Generate and submit Slurm job script for each combination
+for dataset in "${DATASET_LIST[@]}"; do
+    for model in "${MODEL_LIST[@]}"; do
+        # Generate Slurm job script content
+        slurm_script_content=$(echo "$SLURM_SCRIPT_TEMPLATE" | sed "s/{{dataset}}/$dataset/g; s/{{model}}/$model/g")
+
+        # Write Slurm job script to a file
+        script_filename="slurm_scripts/${dataset}_${model}_job.sh"
+        echo "$slurm_script_content" > "$script_filename"
+
+        # Submit Slurm job script
+        sbatch "$script_filename"
+    done
+done
