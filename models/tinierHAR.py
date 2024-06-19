@@ -8,36 +8,58 @@ import time
 from flash_attn import flash_attn_qkvpacked_func, flash_attn_func
 
 
-class FlashMHA(nn.Module):
-    def __init__(self, embed_dim, num_heads, dropout=0.0, causal=False):
-        super(FlashMHA, self).__init__()
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-        assert self.head_dim * num_heads == embed_dim, "embed_dim must be divisible by num_heads"
+'''
+class SelfAttention_interaction(nn.Module):
+    def __init__(self, sensor_channel, n_channels):
+        super(SelfAttention_interaction, self).__init__()
 
-        self.qkv_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=False)
-        self.out_proj = nn.Linear(embed_dim, embed_dim, bias=False)
-        self.dropout = dropout
-        self.causal = causal
-
+        self.query = nn.Linear(n_channels, n_channels, bias=False)
+        self.key = nn.Linear(n_channels, n_channels, bias=False)
+        self.value = nn.Linear(n_channels, n_channels, bias=False)
+        self.gamma = nn.Parameter(torch.tensor([0.], dtype=torch.float32))
+        
     def forward(self, x):
-        batch_size, seqlen, embed_dim = x.size()
-
+        # Ensure input is in float16 and move to GPU
+        x = x.to(torch.float16).cuda()
+        
+        # Ensure weights are in float16 and move to GPU
+        self.query.weight.data = self.query.weight.data.to(torch.float16).cuda()
+        self.key.weight.data = self.key.weight.data.to(torch.float16).cuda()
+        self.value.weight.data = self.value.weight.data.to(torch.float16).cuda()
+        
         # Project input to Q, K, V
-        qkv = self.qkv_proj(x)
-        qkv = qkv.view(batch_size, seqlen, 3, self.num_heads, self.head_dim)
-        qkv = qkv.permute(2, 0, 1, 3, 4)  # (3, batch_size, seqlen, num_heads, head_dim)
-
+        q = self.query(x)
+        k = self.key(x)
+        v = self.value(x)
+        
+        # Reshape to (batch, seqlen, num_heads, head_dim)
+        batch_size, seqlen, feature_dim = x.shape
+        num_heads = 1  # Since we are not using multi-head attention here
+        head_dim = feature_dim // num_heads
+        
+        q = q.view(batch_size, seqlen, num_heads, head_dim)
+        k = k.view(batch_size, seqlen, num_heads, head_dim)
+        v = v.view(batch_size, seqlen, num_heads, head_dim)
+        
         # Apply FlashAttention
-        out = flash_attn_qkvpacked_func(qkv, dropout_p=self.dropout, causal=self.causal)
-
-        # Recombine heads and project to output
-        out = out.contiguous().view(batch_size, seqlen, embed_dim)
-        out = self.out_proj(out)
+        qkv = torch.stack((q, k, v), dim=2)  # Shape: (batch_size, seqlen, 3, num_heads, head_dim)
+        out = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, causal=False)
+        
+        # Reshape the output back to (batch, seqlen, feature_dim)
+        out = out.view(batch_size, seqlen, feature_dim)
+        
+        # Convert gamma to float16 and move to GPU if needed
+        gamma = self.gamma.to(torch.float16).cuda()
+        
+        # Apply gamma parameter
+        out = gamma * out + x
+        
+        # Convert the output back to float32 if needed and move to CPU
+        out = out.to(torch.float32).cpu()
+        
         return out
 
-
+'''
 class SelfAttention_interaction(nn.Module):
     """
 
@@ -154,7 +176,8 @@ sensor_channel = 10  # Example sensor_channel dimension
 n_channels = 64      # Example n_channels dimension
 
 # Instantiate the model
-model = SelfAttention_interaction(sensor_channel, n_channels)
+model = SelfAttention_interaction(sensor_channel, n_channels).cuda()
+
 
 # Measure total parameters
 total_params = sum(p.numel() for p in model.parameters())
@@ -163,7 +186,8 @@ print(f"Total number of parameters: {total_params}")
 # Create a dummy input tensor with the shape (batch, sensor_channel, feature_dim)
 batch_size = 8        # Example batch size
 feature_dim = 64      # Example feature dimension
-dummy_input = torch.randn(batch_size, sensor_channel, feature_dim)
+dummy_input = torch.randn(batch_size, sensor_channel, feature_dim).cuda()
+
 
 # Measure the time taken for a forward pass
 start_time = time.time()
@@ -180,6 +204,9 @@ print(f"Output shape: {output.shape}")
 # Manually calculate FLOPs
 def calculate_flops(model, input_tensor):
     flops = 0
+
+    # Convert input_tensor to float16 and move to GPU
+    input_tensor = input_tensor.to(torch.float16).cuda()
 
     # Linear layer FLOPs: 2 * input_features * output_features
     flops += 2 * input_tensor.size(1) * model.query.out_features  # query
@@ -203,6 +230,7 @@ def calculate_flops(model, input_tensor):
     flops += batch_size * seq_length * n_channels  # + x.permute(...)
 
     return flops
+
 
 total_flops = calculate_flops(model, dummy_input)
 print(f"Total FLOPs: {total_flops}")
