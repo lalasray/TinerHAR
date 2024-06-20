@@ -45,7 +45,7 @@ if x == "flash":
             
             # Apply FlashAttention
             qkv = torch.stack((q, k, v), dim=2)  # Shape: (batch_size, seqlen, 3, num_heads, head_dim)
-            out = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, causal=False)
+            out = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, causal=True)
             
             # Reshape the output back to (batch, seqlen, feature_dim)
             out = out.view(batch_size, seqlen, feature_dim)
@@ -212,33 +212,22 @@ if x == "flash":
             self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
 
             self.to_out = nn.Sequential(
-                nn.Linear(dim, dim),  # Adjusted to output the same dimension as input
+                nn.Linear(dim_head*3, dim),  # Adjusted to output the same dimension as input
                 nn.Dropout(dropout)
             ) if project_out else nn.Identity()
 
         def forward(self, x):
-            print(f"Input x shape: {x.shape}")
-
             x = x.to(torch.float16)  # Convert input to float16
 
             batch_size, seq_length, _ = x.shape
             qkv = self.to_qkv(x)
-            print(f"Linear output (qkv) shape: {qkv.shape}")
-
+        
             qkv = qkv.view(batch_size, seq_length, 3, self.heads, -1).permute(2, 0, 3, 1, 4)
-            print(f"Reshaped qkv shape: {qkv.shape}")
-
             qkv = qkv.to(x.device)  # Ensure qkv is on the same device as x
-
             out = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, softmax_scale=self.scale, causal=False)
-            print(f"Output from flash_attn_qkvpacked_func shape: {out.shape}")
-
             out = out.permute(0, 2, 1, 3).contiguous().view(batch_size, seq_length, -1)
-            print(f"Permuted and reshaped output shape: {out.shape}")
-
             out = self.to_out(out)  
-            print(f"Output after self.to_out: {out.shape}")
-
+    
             return out
 
 class Transformer_interaction(nn.Module):
@@ -259,7 +248,7 @@ class Transformer_interaction(nn.Module):
 
         return x
     
-'''
+
 # Define the parameters
 sensor_channel = 10  # Example sensor_channel dimension
 n_channels = 64      # Example n_channels dimension
@@ -332,8 +321,8 @@ dim = 64
 attention = Attention(dim).half()  # Convert model weights to float16
 
 # Create a sample input tensor
-batch_size = 2
-seq_length = 10
+batch_size = 32
+seq_length = 20
 x = torch.randn(batch_size, seq_length, dim).half()  # Convert input tensor to float16
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -350,3 +339,4 @@ output = attention(x)
 # Print the output tensor
 print("\nOutput Tensor:")
 print(output.shape)
+'''
