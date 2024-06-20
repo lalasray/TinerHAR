@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from torchinfo import summary
-#from models.tinyHAR import TinyHAR_Model
-from models.tinierHAR import TinyHAR_Model
+from models.tinyHAR import TinyHAR_Model
+#from models.tinierHAR import TinyHAR_Model
 
 
 class Transformer(nn.Module):

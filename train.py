@@ -151,8 +151,6 @@ for DATASET in DATASET_LIST:
                     elif MODEL=='TRANSFORMER':
                         model = Transformer(in_size=INPUT_SIZE, out_size=CLASSES, win_size=WINDOW)
                     elif MODEL == 'CPC':
-                        # encoder_weights_path: path to the best encoder SSL-weights based on validation across hyper-params
-                        # ToDo: select best weights and put them in corresponding directory (e.g. via python script)
                         model = ClassificationWithEncoderCPC(in_size=INPUT_SIZE, out_size=CLASSES, encoder_weights_path=f"pretrain_best/{DATASET}_encoder.pth")
                     else:
                         print("Wrong Model Selected")
