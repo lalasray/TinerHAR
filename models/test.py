@@ -7,7 +7,7 @@ import numpy as np
 import time
 from flash_attn import flash_attn_qkvpacked_func, flash_attn_func
 
-x = "ori" #"flash"ori"equi"
+x = "flash" #"flash"ori"equi"
 
 if x == "flash":
 
@@ -165,39 +165,81 @@ class FeedForward(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+if x == "ori":
+    class Attention(nn.Module):
+        def __init__(self, dim, heads=4, dim_head=16, dropout=0.1):
+            super().__init__()
+            inner_dim = dim_head * heads
+            project_out = not (heads == 1 and dim_head == dim)
 
-class Attention(nn.Module):
-    def __init__(self, dim, heads=4, dim_head=16, dropout=0.):
-        super().__init__()
-        inner_dim = dim_head * heads
-        project_out = not (heads == 1 and dim_head == dim)
+            self.heads = heads
+            self.scale = dim_head ** -0.5
 
-        self.heads = heads
-        self.scale = dim_head ** -0.5
+            self.attend = nn.Softmax(dim=-1)
+            self.dropout = nn.Dropout(dropout)
 
-        self.attend = nn.Softmax(dim=-1)
-        self.dropout = nn.Dropout(dropout)
+            self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
 
-        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
+            self.to_out = nn.Sequential(
+                nn.Linear(inner_dim, dim),
+                nn.Dropout(dropout)
+            ) if project_out else nn.Identity()
 
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, dim),
-            nn.Dropout(dropout)
-        ) if project_out else nn.Identity()
+        def forward(self, x):
+            qkv = self.to_qkv(x).chunk(3, dim=-1)
+            q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
 
-    def forward(self, x):
-        qkv = self.to_qkv(x).chunk(3, dim=-1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
+            dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
 
-        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
+            attn = self.attend(dots)
+            attn = self.dropout(attn)
 
-        attn = self.attend(dots)
-        attn = self.dropout(attn)
+            out = torch.matmul(attn, v)
+            out = rearrange(out, 'b h n d -> b n (h d)')
+            return self.to_out(out)
 
-        out = torch.matmul(attn, v)
-        out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
+if x == "flash":   
+    class Attention(nn.Module):
+        def __init__(self, dim, heads=4, dim_head=16, dropout=0.1):
+            super().__init__()
+            inner_dim = dim_head * heads
+            project_out = not (heads == 1 and dim_head == dim)
 
+            self.heads = heads
+            self.scale = dim_head ** -0.5
+
+            self.dropout = nn.Dropout(dropout)
+            self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
+
+            self.to_out = nn.Sequential(
+                nn.Linear(dim, dim),  # Adjusted to output the same dimension as input
+                nn.Dropout(dropout)
+            ) if project_out else nn.Identity()
+
+        def forward(self, x):
+            print(f"Input x shape: {x.shape}")
+
+            x = x.to(torch.float16)  # Convert input to float16
+
+            batch_size, seq_length, _ = x.shape
+            qkv = self.to_qkv(x)
+            print(f"Linear output (qkv) shape: {qkv.shape}")
+
+            qkv = qkv.view(batch_size, seq_length, 3, self.heads, -1).permute(2, 0, 3, 1, 4)
+            print(f"Reshaped qkv shape: {qkv.shape}")
+
+            qkv = qkv.to(x.device)  # Ensure qkv is on the same device as x
+
+            out = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, softmax_scale=self.scale, causal=False)
+            print(f"Output from flash_attn_qkvpacked_func shape: {out.shape}")
+
+            out = out.permute(0, 2, 1, 3).contiguous().view(batch_size, seq_length, -1)
+            print(f"Permuted and reshaped output shape: {out.shape}")
+
+            out = self.to_out(out)  
+            print(f"Output after self.to_out: {out.shape}")
+
+            return out
 
 class Transformer_interaction(nn.Module):
     def __init__(self, sensor_channel, dim, depth=1, heads=4, dim_head=16, mlp_dim=16, dropout=0.):
@@ -217,7 +259,7 @@ class Transformer_interaction(nn.Module):
 
         return x
     
-
+'''
 # Define the parameters
 sensor_channel = 10  # Example sensor_channel dimension
 n_channels = 64      # Example n_channels dimension
@@ -283,44 +325,28 @@ def calculate_flops(model, input_tensor):
 
 total_flops = calculate_flops(model, dummy_input)
 print(f"Total FLOPs: {total_flops}")
+'''
 
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-criterion = nn.MSELoss()
+# Instantiate the Attention class
+dim = 64
+attention = Attention(dim).half()  # Convert model weights to float16
 
-# Training parameters
-num_epochs = 100
-total_training_time = 0
+# Create a sample input tensor
+batch_size = 2
+seq_length = 10
+x = torch.randn(batch_size, seq_length, dim).half()  # Convert input tensor to float16
 
-# Training loop
-for epoch in range(num_epochs):
-    model.train()
-    optimizer.zero_grad()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+x = x.to(device)
+attention = attention.to(device)
 
-    start_time = time.time()
+# Print the input tensor
+print("Input Tensor:")
+print(x.shape)
 
-    # Forward pass
-    output = model(dummy_input)
+# Get the output from the attention layer
+output = attention(x)
 
-    # Dummy target (example)
-    target = torch.randn_like(output)
-
-    # Compute loss
-    loss = criterion(output, target)
-
-    # Backward pass
-    loss.backward()
-
-    # Update weights
-    optimizer.step()
-
-    end_time = time.time()
-    epoch_time = end_time - start_time
-    total_training_time += epoch_time
-
-    # Calculate FLOPs for this epoch
-    total_flops = calculate_flops(model, dummy_input)
-    flops_per_epoch = total_flops / num_epochs
-
-    #print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Time: {epoch_time:.2f} sec, FLOPs per epoch: {flops_per_epoch:.2f}")
-
-print(f"Time: {total_training_time:.2f} sec")
+# Print the output tensor
+print("\nOutput Tensor:")
+print(output.shape)
