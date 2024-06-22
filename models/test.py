@@ -36,7 +36,7 @@ if x == "flash":
             
             # Reshape to (batch, seqlen, num_heads, head_dim)
             batch_size, seqlen, feature_dim = x.shape
-            num_heads = 8  # Since we are not using multi-head attention here
+            num_heads = 1  # Since we are not using multi-head attention here
             head_dim = feature_dim // num_heads
             
             q = q.view(batch_size, seqlen, num_heads, head_dim)
@@ -250,8 +250,8 @@ class Transformer_interaction(nn.Module):
     
 
 # Define the parameters
-sensor_channel = 10  # Example sensor_channel dimension
-n_channels = 64      # Example n_channels dimension
+sensor_channel = 27  # Example sensor_channel dimension
+n_channels = 32      # Example n_channels dimension
 
 # Instantiate the model
 model = SelfAttention_interaction(sensor_channel, n_channels).cuda()
@@ -262,8 +262,8 @@ total_params = sum(p.numel() for p in model.parameters())
 print(f"Total number of parameters: {total_params}")
 
 # Create a dummy input tensor with the shape (batch, sensor_channel, feature_dim)
-batch_size = 512        # Example batch size
-feature_dim = 64      # Example feature dimension
+batch_size = 256        # Example batch size
+feature_dim = n_channels      # Example feature dimension
 dummy_input = torch.randn(batch_size, sensor_channel, feature_dim).cuda()
 
 

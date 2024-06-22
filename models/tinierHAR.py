@@ -19,6 +19,9 @@ class SelfAttention_interaction(nn.Module):
             self.gamma = nn.Parameter(torch.tensor([0.], dtype=torch.float32))
             
         def forward(self, x):
+
+            #print("input",x.shape)
+
             # Ensure input is in float16 and move to GPU
             x = x.to(torch.float16)
             
@@ -34,7 +37,7 @@ class SelfAttention_interaction(nn.Module):
             
             # Reshape to (batch, seqlen, num_heads, head_dim)
             batch_size, seqlen, feature_dim = x.shape
-            num_heads = 8  # Since we are not using multi-head attention here
+            num_heads = 1  # Since we are not using multi-head attention here
             head_dim = feature_dim // num_heads
             
             q = q.view(batch_size, seqlen, num_heads, head_dim)
@@ -53,9 +56,8 @@ class SelfAttention_interaction(nn.Module):
             
             # Apply gamma parameter
             out = gamma * out + x
-            
-            # Convert the output back to float32 if needed and move to CPU
-            out = out
+
+            #print("output",out.shape)
             
             return out
 

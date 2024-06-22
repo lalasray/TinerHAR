@@ -29,7 +29,7 @@ class SelfAttention_interaction(nn.Module):
 
     def forward(self, x):
         # 输入尺寸是 batch  sensor_channel feature_dim
-        # print(x.shape)
+        #print("input",x.shape)
 
         f, g, h = self.query(x), self.key(x), self.value(x)
 
@@ -40,6 +40,8 @@ class SelfAttention_interaction(nn.Module):
 
         # o = self.beta  * self.fc2(self.fc_activation(self.fc1(o)))  +  o
         # 输出是 batch  sensor_channel feature_dim 1
+
+        #print("output",o.shape)
         return o
 
 
