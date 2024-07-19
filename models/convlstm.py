@@ -1,13 +1,15 @@
 import torch
 import torch.nn as nn
 from torchinfo import summary
-
+from thop import profile, clever_format
+import time
 
 class ConvLSTM(nn.Module):
 
     def __init__(self, in_size=3, out_size=10, conv_features=64, kernel_size=5, LSTM_units=128, **kwargs):
         super(ConvLSTM, self).__init__()
 
+        # Define convolutional layers
         self.conv1 = nn.Conv2d(1, conv_features, (kernel_size, 1))
         self.conv2 = nn.Conv2d(conv_features, conv_features, (kernel_size, 1))
         self.conv3 = nn.Conv2d(conv_features, conv_features, (kernel_size, 1))
@@ -44,11 +46,33 @@ class ConvLSTM(nn.Module):
 
 
 if __name__ == '__main__':
-    c, classes, b, w = 6, 11, 128, 100
-    m = ConvLSTM(c, classes)
-    x = torch.rand(b, w, c)
+    # Set device to GPU if available, otherwise CPU
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    c, classes, b, w = 3, 256, 1, 100
+    m = ConvLSTM(c, classes).to(device)
+    x = torch.rand(b, w, c).to(device)
 
     y = m(x)
-    print(f"f's y:{y.shape}  -- x.shape: {x.shape}")
-    print(f"predict:{m.predict(x).shape}")
-    summary(m)
+    print(f"y shape: {y.shape}  -- x shape: {x.shape}")
+    print(f"predict shape: {m.predict(x).shape}")
+
+    # Model summary
+    #summary(m, input_size=(b, w, c))
+
+    # Calculate FLOPs and parameters
+    input_tensor = torch.rand(1, w, c).to(device)
+    flops, params = profile(m, inputs=(input_tensor,))
+    flops, params = clever_format([flops, params], "%.3f")
+
+    print(f"Total Parameters: {params}")
+    print(f"Total FLOPs: {flops}")
+    print(f"Total Parameters: {params}")
+    print(f"Total FLOPs: {flops}")
+
+    # Measure inference time
+    start_time = time.time()
+    _ = m(input_tensor)
+    end_time = time.time()
+
+    print(f"Inference Time: {(end_time - start_time) * 1000:.3f} ms")
